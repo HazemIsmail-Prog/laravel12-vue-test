@@ -17,6 +17,7 @@
         SheetHeader,
         SheetTitle,
     } from '@/components/ui/sheet';
+    import { Spinner } from '@/components/ui/spinner';
 
     const appLocale = localStorage.getItem('locale') || 'en';
     const form = useForm<User>({
@@ -27,7 +28,7 @@
     })
     const open = ref(false);
     const isEditing = ref(false);
-
+    const isSubmitting = ref(false);
     const setFormDefaults = (user?: User | null) => {
         return {
             id: user?.id ?? 0,
@@ -58,6 +59,7 @@
     const handleSubmit = () => {
         const method = isEditing.value ? 'put' : 'post';
         const url = isEditing.value ? '/users/' + form.id : '/users';
+        isSubmitting.value = true;
         axios[method](url, form.data())
         .then(response => {
             if (isEditing.value) {
@@ -69,6 +71,8 @@
         })
         .catch(error => {
             form.errors = error.response.data.errors;
+        }).finally(() => {
+            isSubmitting.value = false;
         });
     };
 
@@ -133,11 +137,12 @@
                 </div>
                 <SheetFooter>
                     <Button 
-                        :disabled="form.processing || !form.isDirty" 
+                        :disabled="isSubmitting || !form.isDirty" 
                         type="submit"
                         :default-value="isEditing ? $t('Update') : $t('Add')"
                     >
-                        {{ isEditing ? $t('Update') : $t('Add') }}
+                    {{ isEditing ? $t('Update') : $t('Add') }}
+                    <Spinner v-if="isSubmitting" />
                     </Button>
                     <SheetClose as-child>
                         <Button variant="outline">{{ $t('Close') }}</Button>
