@@ -2,12 +2,13 @@
     import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group';
     import { ButtonGroup } from '@/components/ui/button-group';
     import { useIntersectionObserver } from '@vueuse/core';
+    import { ref, onMounted, watch, provide } from 'vue';
     import { Spinner } from '@/components/ui/spinner';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { Button } from '@/components/ui/button';
+    import { useCrud } from '@/composables/useCrud';
     import { type BreadcrumbItem } from '@/types';
     import { Badge } from '@/components/ui/badge';
-    import { ref, onMounted, watch } from 'vue';
     import { Search } from 'lucide-vue-next';
     import { Head } from '@inertiajs/vue3';
     import { User } from '@/types/models';
@@ -21,8 +22,6 @@
         TableHeader,
         TableRow,
     } from '@/components/ui/table';
-    import { useCrud } from '@/composables/useCrud';
-    import { provide } from 'vue';
 
     const crud= useCrud<User>();
     const { fetch, loadMore, data, total, isFetching, nextPageUrl, destroy , openSheet} = crud;
