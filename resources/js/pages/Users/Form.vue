@@ -1,13 +1,14 @@
 <script setup lang="ts">
     import InputError from '@/components/InputError.vue';
+    import { Spinner } from '@/components/ui/spinner';
     import { Button } from '@/components/ui/button';
+    import { useCrud } from '@/composables/useCrud';
     import { Switch } from '@/components/ui/switch';
     import { Input } from '@/components/ui/input';
     import { Label } from '@/components/ui/label';
     import { useForm } from '@inertiajs/vue3';
     import { User } from '@/types/models';
-    import { ref } from 'vue';
-    import axios from 'axios';
+    import { watch, inject } from 'vue';
     import {
         Sheet,
         SheetClose,
@@ -17,18 +18,15 @@
         SheetHeader,
         SheetTitle,
     } from '@/components/ui/sheet';
-    import { Spinner } from '@/components/ui/spinner';
 
     const appLocale = localStorage.getItem('locale') || 'en';
+    const {formSheetIsOpen, closeSheet, selectedRecord, submit, isSubmitting, errors} = inject('sharedCrud') as ReturnType<typeof useCrud<User>>;
     const form = useForm<User>({
         id: 0,
         name: '',
         email: '',
         is_active: true,
-    })
-    const open = ref(false);
-    const isEditing = ref(false);
-    const isSubmitting = ref(false);
+    });
     const setFormDefaults = (user?: User | null) => {
         return {
             id: user?.id ?? 0,
@@ -38,92 +36,53 @@
         }
     };
 
-    const openSheet = (user?: User | null) => {
-        form.defaults(setFormDefaults(user));
+    watch(formSheetIsOpen, () => {
+        form.defaults(setFormDefaults(selectedRecord.value));
         form.resetAndClearErrors();
-        isEditing.value = user ? true : false;
-        open.value = true;
-    };
-
-    const closeSheet = () => {
-        open.value = false;
-        form.defaults(setFormDefaults());
-        form.resetAndClearErrors();
-    };
-
-    const emit = defineEmits<{
-        (e: 'user-updated', user: User): void
-        (e: 'user-created', user: User): void
-    }>();
-
-    const handleSubmit = () => {
-        const method = isEditing.value ? 'put' : 'post';
-        const url = isEditing.value ? '/users/' + form.id : '/users';
-        isSubmitting.value = true;
-        axios[method](url, form.data())
-        .then(response => {
-            if (isEditing.value) {
-                emit('user-updated', response.data);
-            } else {
-                emit('user-created', response.data);
-            }
-            closeSheet();
-        })
-        .catch(error => {
-            form.errors = error.response.data.errors;
-        }).finally(() => {
-            isSubmitting.value = false;
-        });
-    };
-
-    defineExpose({
-        openSheet,
-        closeSheet,
     });
-
     
 </script>
 
 <template>
     <Sheet 
-        :open="open"
-        @update:open="closeSheet"
+        :open="formSheetIsOpen"
+        @update:open="closeSheet()"
     >
         <SheetContent 
             :side="appLocale === 'ar' ? 'left' : 'right'"
         >
             <SheetHeader>
                 <SheetTitle>
-                    {{ isEditing ? $t('Edit User') : $t('Add User') }}
+                    {{ selectedRecord ? $t('Edit User') : $t('Add User') }}
                 </SheetTitle>
                 <SheetDescription>
-                    {{ isEditing ? $t('Edit the details to update the user.') : $t('Fill in the details to add a new user.') }}
+                    {{ selectedRecord ? $t('Edit the details to update the user.') : $t('Fill in the details to add a new user.') }}
                 </SheetDescription>
             </SheetHeader>
-            <form @submit.prevent="handleSubmit">
+            <form @submit.prevent="submit('/users', form.data())">
                 <div class="grid flex-1 auto-rows-min gap-6 px-4">
                     <div class="grid gap-3">
                         <Label for="form-name_en">{{ $t('Name') }}</Label>
                         <Input 
-                            :aria-invalid="form.errors?.name?.[0] ? true : false" 
+                            :aria-invalid="errors?.name?.[0] ? true : false" 
                             id="form-name_en" 
                             :placeholder="$t('Name')" 
                             v-model="form.name" 
                             :default-value="form.name"
                         />
-                        <InputError :message="form.errors?.name?.[0]" />
+                        <InputError :message="errors?.name?.[0]" />
                     </div>
                     <div class="grid gap-3">
                         <Label for="form-email">{{ $t('Email') }}</Label>
                         <Input 
-                            :aria-invalid="form.errors?.email?.[0] ? true : false" 
+                            :aria-invalid="errors?.email?.[0] ? true : false" 
                             id="form-email" 
                             type="email" 
                             :placeholder="$t('Email')" 
                             v-model="form.email" 
                             :default-value="form.email"
                         />
-                        <InputError :message="form.errors?.email?.[0]" />
+                        <InputError :message="errors?.email?.[0]" />
                     </div>
 
                     <div class="flex items-center space-x-2">
@@ -139,9 +98,9 @@
                     <Button 
                         :disabled="isSubmitting || !form.isDirty" 
                         type="submit"
-                        :default-value="isEditing ? $t('Update') : $t('Add')"
+                        :default-value="selectedRecord ? $t('Update') : $t('Add')"
                     >
-                    {{ isEditing ? $t('Update') : $t('Add') }}
+                    {{ selectedRecord ? $t('Update') : $t('Add') }}
                     <Spinner v-if="isSubmitting" />
                     </Button>
                     <SheetClose as-child>

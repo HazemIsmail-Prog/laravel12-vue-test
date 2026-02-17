@@ -13,7 +13,6 @@
     import { User } from '@/types/models';
     import { useI18n } from 'vue-i18n';
     import Form from './Form.vue';
-    import axios from 'axios';
     import {
         Table,
         TableBody,
@@ -22,107 +21,37 @@
         TableHeader,
         TableRow,
     } from '@/components/ui/table';
+    import { useCrud } from '@/composables/useCrud';
+    import { provide } from 'vue';
+
+    const crud= useCrud<User>();
+    const { fetch, loadMore, data, total, isFetching, nextPageUrl, destroy , openSheet} = crud;
+    provide('sharedCrud', crud);
 
     const { t } = useI18n();
-
+    const loadMoreRef = ref<HTMLElement | null>(null);
+    const filters = ref({ search: '', is_active: 'all' });
 
     const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: t('Users'),
-            href: '/users',
-        },
+        { title: t('Users'), href: '/users' },
     ];
 
     onMounted(() => {
-
         useIntersectionObserver(loadMoreRef, ([{ isIntersecting }]) => {
-            if (isIntersecting) {
-                loadMore();
-            }
+            if (isIntersecting) loadMore(filters.value);
         });
-        getUsers();
+        fetch('/users', filters.value);
     });
 
-    const formTarget = ref<typeof Form | null>(null);
-    const users = ref<User[]>([]);
-    const isFetching = ref(false);
-    const total = ref(0);
-    const nextPageUrl = ref<string | null>(null);
-    const currentPage = ref(1);
-    const loadMoreRef = ref<HTMLElement | null>(null);
-    const filters = ref({
-        search: '',
-        is_active: 'all',
-    });
-
-    watch(() => filters.value.search, (newVal) => {
-        getUsers();
-    });
-    watch(() => filters.value.is_active, (newVal) => {
-        getUsers();
-    });
-
-    const getUsers = () => {
-        isFetching.value = true;
-        axios.get('/users', { params: { ...filters.value } })
-            .then(response => {
-                users.value = response.data.data;
-                total.value = response.data.total;
-                nextPageUrl.value = response.data.next_page_url;
-                currentPage.value = response.data.current_page;
-            }).catch((error) => {
-                console.error(error);
-            }).finally(() => {
-                isFetching.value = false;
-            });
-    };
-
-    const loadMore = () => {    
-        if (!nextPageUrl.value) return;
-        axios.get(nextPageUrl.value, { params: filters.value }).then(response => {
-            const newUsers = response.data.data.filter((user: User) => !users.value.some(u => u.id === user.id));
-            users.value.push(...newUsers);
-            nextPageUrl.value = response.data.next_page_url;
-        });
-    };
-
-    const openSheet = (user?: User) => {
-        formTarget.value?.openSheet(user);
-    };
-
-    const handleUserUpdated = (user: User) => {
-        users.value = users.value.map(u => u.id === user.id ? user : u);
-    };
-
-    const handleUserCreated = (user: User) => {
-        users.value.unshift(user);
-        total.value++;
-    };
-    
-    const deleteUser = (user: User) => {
-        if (!confirm('Are you sure you want to delete this user?')) return;
-        
-        axios.delete('/users/' + user.id)
-            .then(() => {
-                users.value = users.value.filter(u => u.id !== user.id);
-                total.value--;
-            })
-            .catch(error => {
-                console.error(error);
-            });
-    };
+    watch(filters, () => fetch('/users', filters.value), { deep: true });
 
 </script>
 
 <template>
     <Head :title="$t('Users')" />
-    
-    <Form 
-        ref="formTarget" 
-        @user-updated="handleUserUpdated($event as User)"
-        @user-created="handleUserCreated($event as User)"
-    />
 
+    <Form />    
+    
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
 
@@ -168,11 +97,13 @@
                     class="self-end md:self-center"
                     variant="default" 
                     size="sm" 
-                    @click="openSheet()"
+                    @click="openSheet(null)"
                 >{{ $t('Add User') }}</Button>
 
             </div>
-            <Table v-if="!isFetching">
+
+            
+            <Table v-if="data.length > 0 && !isFetching">
                 <TableHeader>
                     <TableRow>
                         <TableHead>{{ $t('ID') }}</TableHead>
@@ -184,7 +115,7 @@
                 </TableHeader>
                 <TableBody>
                     <TableRow 
-                        v-for="user in users" 
+                        v-for="user in data" 
                         :key="user.id"
                     >
                         <TableCell>{{ user.id }}</TableCell>
@@ -204,13 +135,13 @@
                             <Button 
                                 variant="outline" 
                                 size="sm" 
-                                @click="openSheet(user)"
+                                @click="openSheet(user as User)"
                             >{{ $t('Edit') }}</Button>
 
                             <Button 
                                 variant="destructive" 
                                 size="sm" 
-                                @click="deleteUser(user)"
+                                @click="destroy('/users', user.id)"
                             >{{ $t('Delete') }}</Button>
 
                         </TableCell>
@@ -233,5 +164,7 @@
             </div>
 
         </div>
+
+
     </AppLayout>
 </template>
